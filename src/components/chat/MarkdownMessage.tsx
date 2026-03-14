@@ -12,12 +12,18 @@ type Props = {
 /**
  * Renders assistant markdown with sanitization (strips script, javascript: URLs,
  * and other dangerous content). Uses rehype-sanitize with default GitHub-style schema.
+ * Preserves LLM newlines as line breaks and adds extra vertical spacing.
  */
 export function MarkdownMessage({ content }: Props) {
+  const withHardBreaks = React.useMemo(
+    () => content.replace(/\n/g, "  \n"),
+    [content]
+  );
+
   return (
-    <div className="prose prose-sm max-w-none font-sans text-zinc-900 [&_*]:break-words">
+    <div className="prose prose-sm max-w-none font-sans text-zinc-900 leading-relaxed [&_*]:break-words [&_p]:mb-3 [&_p:last-child]:mb-0 [&_br]:block [&_br]:h-2">
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-        {content}
+        {withHardBreaks}
       </ReactMarkdown>
     </div>
   );

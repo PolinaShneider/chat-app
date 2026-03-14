@@ -6,7 +6,7 @@ import { RedactedText } from "./RedactedText";
 
 /** Examples: first two elicit PII in the reply (names/emails/phones → redacted); last is generic. */
 const EXAMPLE_MESSAGES = [
-  "Draft a short reply to a customer: their name is Alex Chen and email is alex.chen@company.com.",
+  "Send a meeting invite to Dr. James Wilson at james.wilson@clinic.org for next Tuesday at 2pm.",
   "Write a reminder for Sarah Kim: call her at 555-123-4567 about the appointment.",
   "What are three tips for better time management?",
 ];

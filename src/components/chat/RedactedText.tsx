@@ -79,7 +79,7 @@ export function RedactedText({
   const segments = buildSegments(text, redactionSpans);
 
   return (
-    <div className="prose prose-sm max-w-none font-sans text-zinc-900 [&_*]:break-words whitespace-pre-wrap">
+    <div className="prose prose-sm max-w-none font-sans text-zinc-900 leading-relaxed [&_*]:break-words whitespace-pre-wrap">
       <span className="inline">
         {segments.map((seg, i) => {
           const segmentText = text.slice(seg.start, seg.end);

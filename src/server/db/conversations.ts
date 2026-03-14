@@ -1,9 +1,11 @@
 /**
  * Persistence for conversations and messages (M2).
  * Uses Neon Postgres via getSql().
+ * M3: redaction_spans on messages.
  */
 
 import { getSql } from "@/server/db";
+import type { RedactionSpan } from "@/types/chat";
 
 /** M2: schema types for Neon tables */
 export type ConversationRow = {
@@ -18,6 +20,7 @@ export type MessageRow = {
   conversation_id: string;
   role: "user" | "assistant";
   content: string;
+  redaction_spans: RedactionSpan[] | null;
   created_at: Date;
 };
 
@@ -37,11 +40,25 @@ export async function listConversations(): Promise<ConversationRow[]> {
   }));
 }
 
-/** M2: get messages for a conversation. */
+function parseRedactionSpans(value: unknown): RedactionSpan[] | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value as RedactionSpan[];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? (parsed as RedactionSpan[]) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** M2: get messages for a conversation. M3: includes redaction_spans (parsed from JSONB/string). */
 export async function getMessagesByConversationId(conversationId: string): Promise<MessageRow[]> {
   const sql = getSql();
   const rows = await sql`
-    SELECT id, conversation_id, role, content, created_at
+    SELECT id, conversation_id, role, content, redaction_spans, created_at
     FROM messages
     WHERE conversation_id = ${conversationId}
     ORDER BY created_at ASC
@@ -51,6 +68,7 @@ export async function getMessagesByConversationId(conversationId: string): Promi
     conversation_id: r.conversation_id,
     role: r.role,
     content: r.content,
+    redaction_spans: parseRedactionSpans(r.redaction_spans),
     created_at: r.created_at,
   }));
 }
@@ -69,16 +87,21 @@ export async function createConversation(title?: string): Promise<string> {
   return String(id);
 }
 
-/** M2: append message; returns new message id. */
+/** M2: append message; returns new message id. M3: optional redaction_spans for assistant (stored as JSONB). */
 export async function addMessage(
   conversationId: string,
   role: "user" | "assistant",
-  content: string
+  content: string,
+  redactionSpans?: RedactionSpan[] | null
 ): Promise<string> {
   const sql = getSql();
+  const spansJson: string | null =
+    role === "assistant" && redactionSpans?.length
+      ? JSON.stringify(redactionSpans)
+      : null;
   const rows = await sql`
-    INSERT INTO messages (conversation_id, role, content)
-    VALUES (${conversationId}, ${role}, ${content})
+    INSERT INTO messages (conversation_id, role, content, redaction_spans)
+    VALUES (${conversationId}, ${role}, ${content}, (${spansJson})::jsonb)
     RETURNING id
   `;
   const id = rows[0]?.id;

@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS messages (
   conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
+  redaction_spans JSONB DEFAULT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+
+-- M3: if messages table already exists, run:
+-- ALTER TABLE messages ADD COLUMN IF NOT EXISTS redaction_spans JSONB DEFAULT NULL;

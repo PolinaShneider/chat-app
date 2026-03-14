@@ -1,10 +1,14 @@
 /**
  * M1: Streaming chat endpoint. M2: optional conversationId, persist messages, set title.
+ * M3: Spoiler mode – buffer chunks, run PII, flush content in segments so redacted parts
+ *     are sent only when known and already marked (blurred on first paint).
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { streamChat } from "@/server/llm/streamChat";
+import { detectPII } from "@/server/llm/detectPII";
+import type { RedactionSpan } from "@/types/chat";
 import {
   createConversation,
   addMessage,
@@ -14,6 +18,8 @@ import {
 export const runtime = "nodejs";
 
 const TITLE_MAX_LENGTH = 50;
+/** When no newline yet, flush after this many chars so long lines still stream. */
+const PII_MAX_CHARS_WITHOUT_NEWLINE = 120;
 
 const requestSchema = z.object({
   messages: z.array(
@@ -24,6 +30,44 @@ const requestSchema = z.object({
   ),
   conversationId: z.string().uuid().optional().nullable(),
 });
+
+function enqueueLine(
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder,
+  obj: { type: string; [k: string]: unknown }
+) {
+  controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+}
+
+/** Normalize multiple newlines to a single newline. */
+function normalizeNewlines(s: string): string {
+  return s.replace(/\n\n+/g, "\n");
+}
+
+/** Build segments [start, end) in range [from, to) split by redaction spans (sorted). */
+function buildFlushSegments(
+  buffer: string,
+  spans: RedactionSpan[],
+  from: number,
+  to: number
+): { kind: "plain" | "redacted"; start: number; end: number; span?: RedactionSpan }[] {
+  const segments: { kind: "plain" | "redacted"; start: number; end: number; span?: RedactionSpan }[] = [];
+  const relevant = spans.filter((s) => s.end > from && s.start < to).sort((a, b) => a.start - b.start);
+  let pos = from;
+  for (const span of relevant) {
+    const segStart = Math.max(span.start, from);
+    const segEnd = Math.min(span.end, to);
+    if (segStart > pos) {
+      segments.push({ kind: "plain", start: pos, end: segStart });
+    }
+    segments.push({ kind: "redacted", start: segStart, end: segEnd, span });
+    pos = segEnd;
+  }
+  if (pos < to) {
+    segments.push({ kind: "plain", start: pos, end: to });
+  }
+  return segments;
+}
 
 export async function POST(request: Request) {
   let json: unknown;
@@ -84,22 +128,101 @@ export async function POST(request: Request) {
   }
 
   try {
+    const encoder = new TextEncoder();
+    let buffer = "";
+    let lastFlushedEnd = 0;
+    let piiInFlight = false;
+    let resolvePIIInFlight: () => void;
+    let piiSettled: Promise<void> = Promise.resolve();
+
     const stream = new ReadableStream({
       async start(controller) {
-        const encoder = new TextEncoder();
-        let fullContent = "";
+        let messageId = "";
         try {
           for await (const chunk of streamChat(messages)) {
-            if (chunk) {
-              fullContent += chunk;
-              controller.enqueue(encoder.encode(chunk));
+            if (!chunk) continue;
+            buffer += chunk;
+
+            const normalized = normalizeNewlines(buffer);
+            const pending = normalized.length - lastFlushedEnd;
+            const nextNewline = normalized.indexOf("\n", lastFlushedEnd);
+            const shouldFlush =
+              pending > 0 &&
+              (nextNewline !== -1 || pending >= PII_MAX_CHARS_WITHOUT_NEWLINE);
+            const snapshotEnd =
+              nextNewline !== -1
+                ? nextNewline + 1
+                : Math.min(normalized.length, lastFlushedEnd + PII_MAX_CHARS_WITHOUT_NEWLINE);
+
+            if (!piiInFlight && shouldFlush) {
+              piiInFlight = true;
+              piiSettled = new Promise<void>((r) => {
+                resolvePIIInFlight = r;
+              });
+              const flushEnd = snapshotEnd;
+              detectPII(normalized.slice(0, flushEnd)).then((spans: RedactionSpan[]) => {
+                const segments = buildFlushSegments(normalized, spans, lastFlushedEnd, flushEnd);
+                for (const seg of segments) {
+                  const text = normalized.slice(seg.start, seg.end);
+                  if (!text) continue;
+                  if (seg.kind === "redacted" && seg.span) {
+                    enqueueLine(controller, encoder, {
+                      type: "chunk",
+                      text,
+                      redactSpan: { id: seg.span.id, type: seg.span.type },
+                    });
+                  } else {
+                    enqueueLine(controller, encoder, { type: "chunk", text });
+                  }
+                }
+                lastFlushedEnd = flushEnd;
+                piiInFlight = false;
+                resolvePIIInFlight();
+              });
             }
           }
-          await addMessage(conversationId, "assistant", fullContent);
+
+          await piiSettled;
+
+          const normalizedBuffer = normalizeNewlines(buffer);
+          const finalSpans = await Promise.race([
+            detectPII(normalizedBuffer),
+            new Promise<RedactionSpan[]>((_, reject) =>
+              setTimeout(() => reject(new Error("PII detection timeout")), 15_000)
+            ),
+          ]).catch(() => [] as RedactionSpan[]);
+
+          const tailSegments = buildFlushSegments(
+            normalizedBuffer,
+            finalSpans,
+            lastFlushedEnd,
+            normalizedBuffer.length
+          );
+          for (const seg of tailSegments) {
+            const text = normalizedBuffer.slice(seg.start, seg.end);
+            if (!text) continue;
+            if (seg.kind === "redacted" && seg.span) {
+              enqueueLine(controller, encoder, {
+                type: "chunk",
+                text,
+                redactSpan: { id: seg.span.id, type: seg.span.type },
+              });
+            } else {
+              enqueueLine(controller, encoder, { type: "chunk", text });
+            }
+          }
+
+          messageId = await addMessage(
+            conversationId,
+            "assistant",
+            normalizedBuffer,
+            finalSpans.length ? finalSpans : undefined
+          );
           await updateConversation(conversationId, {});
         } catch (err) {
           console.error("Stream or persist error", err);
         } finally {
+          enqueueLine(controller, encoder, { type: "done", messageId });
           controller.close();
         }
       },
@@ -107,7 +230,7 @@ export async function POST(request: Request) {
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/x-ndjson; charset=utf-8",
         "X-Conversation-Id": conversationId,
       },
     });

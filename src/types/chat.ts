@@ -11,6 +11,8 @@ export type Message = {
   id: string;
   role: MessageRole;
   content: MessageContent;
+  /** M3: assistant messages only; server-generated ids */
+  redactions?: RedactionSpan[];
 };
 
 /** M2: conversation for sidebar and history */
@@ -21,10 +23,12 @@ export type Conversation = {
   updatedAt: string; // ISO
 };
 
-/** M3: span to blur/redact in assistant text */
+/** M3: span to blur/redact in assistant text; id generated on server */
 export type RedactionSpan = {
+  id: string;
   start: number;
   end: number;
+  type: string;
 };
 
 /** M3: message content with optional redaction metadata */

@@ -1,6 +1,7 @@
 "use client";
 
 import type { Message } from "@/types/chat";
+import { MarkdownMessage } from "./MarkdownMessage";
 
 type Props = {
   messages: Message[];
@@ -20,12 +21,16 @@ export function ChatMessageList({ messages, streamingContent = "" }: Props) {
               : "max-w-[85%] rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-900"
           }
         >
-          {typeof m.content === "string" ? m.content : ""}
+          {m.role === "assistant" && typeof m.content === "string" ? (
+            <MarkdownMessage content={m.content} />
+          ) : (
+            typeof m.content === "string" ? m.content : ""
+          )}
         </div>
       ))}
       {streamingContent ? (
         <div className="max-w-[85%] rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-900">
-          {streamingContent}
+          <MarkdownMessage content={streamingContent} />
         </div>
       ) : null}
     </div>

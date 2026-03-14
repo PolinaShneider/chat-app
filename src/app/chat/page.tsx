@@ -22,13 +22,14 @@ export default function ChatPage() {
   } = useChatStream();
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-50 text-zinc-900">
-      <header className="border-b border-zinc-200 bg-white px-4 py-2">
-        <h1 className="text-lg font-semibold">Chat</h1>
-      </header>
+    <div className="flex min-h-screen justify-center bg-zinc-50 text-zinc-900">
+      <div className="flex h-screen w-full max-w-6xl flex-col shadow-sm">
+        <header className="shrink-0 border-b border-zinc-200 bg-white px-4 py-2">
+          <h1 className="text-lg font-semibold">Chat</h1>
+        </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <ChatSidebar
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <ChatSidebar
           conversations={conversations}
           selectedId={selectedConversationId}
           onSelect={setSelectedConversationId}
@@ -48,6 +49,7 @@ export default function ChatPage() {
           )}
           <ChatInput onSend={sendMessage} disabled={isStreaming} />
         </main>
+        </div>
       </div>
     </div>
   );

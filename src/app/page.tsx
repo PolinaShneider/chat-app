@@ -56,9 +56,17 @@ export default function Home() {
     <div className="min-h-screen bg-zinc-50 px-4 py-12 font-sans text-zinc-900">
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Take‑Home Boilerplate: Next.js + Neon + LLM
-          </h1>
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Take‑Home Boilerplate: Next.js + Neon + LLM
+            </h1>
+            <a
+              href="/chat"
+              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white no-underline shadow-sm transition hover:bg-zinc-800"
+            >
+              Open Chat
+            </a>
+          </div>
           <p className="text-sm text-zinc-600">
             This page exercises the BFF layer by calling a database-backed health
             check and an LLM-powered chat endpoint.

@@ -109,6 +109,12 @@ export async function addMessage(
   return String(id);
 }
 
+/** M2: delete conversation. Messages are removed by ON DELETE CASCADE. */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const sql = getSql();
+  await sql`DELETE FROM conversations WHERE id = ${conversationId}`;
+}
+
 /** M2: update conversation title and/or updated_at. */
 export async function updateConversation(
   conversationId: string,

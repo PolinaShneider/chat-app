@@ -4,7 +4,7 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { useChatStream } from "@/features/chat/hooks/useChatStream";
-import { useConversations } from "@/features/chat/hooks/useConversations";
+import { useConversations, useDeleteConversation } from "@/features/chat/hooks/useConversations";
 import { useMessages } from "@/features/chat/hooks/useMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
@@ -21,6 +21,7 @@ export default function Home() {
   const hasAutoSelectedRef = useRef(false);
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations();
   const { data: baseMessages = [] } = useMessages(selectedConversationId);
+  const deleteConversationMutation = useDeleteConversation();
 
   useEffect(() => {
     if (selectedConversationId !== null) hasAutoSelectedRef.current = true;
@@ -59,6 +60,17 @@ export default function Home() {
   const getRevealed = useCallback((messageId: string): Set<string> => {
     return revealedIds[messageId] ?? new Set();
   }, [revealedIds]);
+
+  const onDeleteConversation = useCallback(
+    (id: string) => {
+      deleteConversationMutation.mutate(id, {
+        onSuccess: () => {
+          if (selectedConversationId === id) setSelectedConversationId(null);
+        },
+      });
+    },
+    [deleteConversationMutation, selectedConversationId]
+  );
 
   const onToggleReveal = useCallback((messageId: string, spanId: string) => {
     setRevealedIds((prev) => {
@@ -99,6 +111,8 @@ export default function Home() {
             selectedId={selectedConversationId}
             onSelect={setSelectedConversationId}
             onNewChat={() => setSelectedConversationId(null)}
+            onDelete={onDeleteConversation}
+            isDeletingId={deleteConversationMutation.isPending ? deleteConversationMutation.variables : null}
             isLoading={conversationsLoading}
           />
 

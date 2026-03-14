@@ -50,3 +50,12 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
   const data = (await res.json()) as { messages?: Message[] };
   return data.messages ?? [];
 }
+
+/** M2: delete a conversation (and all its messages via DB cascade). */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err?.error ?? `HTTP ${res.status}`);
+  }
+}

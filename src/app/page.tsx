@@ -83,11 +83,23 @@ export default function Home() {
 
   const displayMessages = useMemo((): Message[] => {
     const list: Message[] = [...baseMessages];
-    const lastBase = baseMessages[baseMessages.length - 1];
+
     const pendingAlreadyInBase =
-      lastBase?.role === "user" && pendingUserMessage && lastBase.content === pendingUserMessage.content;
-    if (pendingUserMessage && !pendingAlreadyInBase) list.push(pendingUserMessage);
-    if (isStreaming || streamingContent) {
+      !!pendingUserMessage &&
+      baseMessages.some(
+        (m) => m.role === "user" && m.content === pendingUserMessage.content
+      );
+    if (pendingUserMessage && !pendingAlreadyInBase) {
+      list.push(pendingUserMessage);
+    }
+
+    const hasFinalAssistantForStream =
+      !!streamingContent &&
+      baseMessages.some(
+        (m) => m.role === "assistant" && m.content === streamingContent
+      );
+
+    if ((isStreaming || streamingContent) && !hasFinalAssistantForStream) {
       list.push({
         id: "streaming",
         role: "assistant",
@@ -95,6 +107,7 @@ export default function Home() {
         redactions: streamingRedactions.length ? streamingRedactions : undefined,
       });
     }
+
     return list;
   }, [baseMessages, pendingUserMessage, isStreaming, streamingContent, streamingRedactions]);
 
@@ -121,6 +134,7 @@ export default function Home() {
               messages={displayMessages}
               getRevealed={getRevealed}
               onToggleReveal={onToggleReveal}
+              onExampleClick={sendMessage}
             />
             {error && (
               <p className="px-4 py-2 text-sm text-red-600" role="alert">

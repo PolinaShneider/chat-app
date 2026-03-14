@@ -21,30 +21,91 @@ export type MessageRow = {
   created_at: Date;
 };
 
-/** M2: list conversations (stub). TODO: SELECT from conversations table. */
+/** M2: list conversations, most recently updated first. */
 export async function listConversations(): Promise<ConversationRow[]> {
-  void getSql();
-  return [];
+  const sql = getSql();
+  const rows = await sql`
+    SELECT id, title, created_at, updated_at
+    FROM conversations
+    ORDER BY updated_at DESC
+  `;
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
 }
 
-/** M2: get messages for a conversation (stub). TODO: SELECT from messages table. */
-export async function getMessagesByConversationId(_conversationId: string): Promise<MessageRow[]> {
-  void getSql();
-  return [];
+/** M2: get messages for a conversation. */
+export async function getMessagesByConversationId(conversationId: string): Promise<MessageRow[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT id, conversation_id, role, content, created_at
+    FROM messages
+    WHERE conversation_id = ${conversationId}
+    ORDER BY created_at ASC
+  `;
+  return rows.map((r) => ({
+    id: r.id,
+    conversation_id: r.conversation_id,
+    role: r.role,
+    content: r.content,
+    created_at: r.created_at,
+  }));
 }
 
-/** M2: create conversation (stub). TODO: INSERT, return id. */
-export async function createConversation(_title?: string): Promise<string> {
-  void getSql();
-  return "stub-id";
+/** M2: create conversation; returns new id. */
+export async function createConversation(title?: string): Promise<string> {
+  const sql = getSql();
+  const defaultTitle = "New chat";
+  const rows = await sql`
+    INSERT INTO conversations (title)
+    VALUES (${title ?? defaultTitle})
+    RETURNING id
+  `;
+  const id = rows[0]?.id;
+  if (!id) throw new Error("Failed to create conversation");
+  return String(id);
 }
 
-/** M2: append message (stub). TODO: INSERT into messages. */
+/** M2: append message; returns new message id. */
 export async function addMessage(
-  _conversationId: string,
-  _role: "user" | "assistant",
-  _content: string
+  conversationId: string,
+  role: "user" | "assistant",
+  content: string
 ): Promise<string> {
-  void getSql();
-  return "stub-msg-id";
+  const sql = getSql();
+  const rows = await sql`
+    INSERT INTO messages (conversation_id, role, content)
+    VALUES (${conversationId}, ${role}, ${content})
+    RETURNING id
+  `;
+  const id = rows[0]?.id;
+  if (!id) throw new Error("Failed to add message");
+  return String(id);
+}
+
+/** M2: update conversation title and/or updated_at. */
+export async function updateConversation(
+  conversationId: string,
+  updates: { title?: string; updated_at?: Date }
+): Promise<void> {
+  const sql = getSql();
+  if (updates.title !== undefined) {
+    await sql`
+      UPDATE conversations SET title = ${updates.title}, updated_at = now()
+      WHERE id = ${conversationId}
+    `;
+  } else if (updates.updated_at !== undefined) {
+    await sql`
+      UPDATE conversations SET updated_at = ${updates.updated_at}
+      WHERE id = ${conversationId}
+    `;
+  } else {
+    await sql`
+      UPDATE conversations SET updated_at = now()
+      WHERE id = ${conversationId}
+    `;
+  }
 }

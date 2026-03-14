@@ -7,20 +7,32 @@ import type { Message } from "@/types/chat";
 
 export type SendMessageInput = {
   messages: Array<{ role: Message["role"]; content: string }>;
+  conversationId?: string | null;
 };
 
-/** M1: stream LLM response. Returns response with readable body. */
-export async function postChatStream(_input: SendMessageInput): Promise<Response> {
+export type PostChatStreamResult = {
+  response: Response;
+  conversationId: string | null;
+};
+
+/** M1/M2: stream LLM response. Returns response with readable body and conversation id from header. */
+export async function postChatStream(
+  input: SendMessageInput
+): Promise<PostChatStreamResult> {
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(_input),
+    body: JSON.stringify({
+      messages: input.messages,
+      ...(input.conversationId != null && { conversationId: input.conversationId }),
+    }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err?.error ?? `HTTP ${res.status}`);
   }
-  return res;
+  const conversationId = res.headers.get("X-Conversation-Id");
+  return { response: res, conversationId };
 }
 
 /** M2: list conversations for sidebar */

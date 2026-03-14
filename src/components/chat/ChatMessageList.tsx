@@ -10,8 +10,16 @@ type Props = {
 
 /** M1: Renders message list. M3: can use RedactedText for assistant content. */
 export function ChatMessageList({ messages, streamingContent = "" }: Props) {
+  const isEmpty = messages.length === 0 && !streamingContent;
+
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+      {isEmpty ? (
+        <div className="flex flex-1 flex-col items-center justify-center text-center text-zinc-500">
+          <p className="text-sm">Start a conversation or select one from the sidebar.</p>
+          <p className="mt-1 text-xs">Type a message below to get started.</p>
+        </div>
+      ) : null}
       {messages.map((m) => (
         <div
           key={m.id}

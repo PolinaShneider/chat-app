@@ -135,6 +135,16 @@ Ensure the database schema has been applied to the Neon project linked by `DATAB
 
 ---
 
+## Deployment (Netlify)
+
+The repo includes `netlify.toml` with [`@netlify/plugin-nextjs`](https://github.com/netlify/netlify-plugin-nextjs) so Next.js runs on Netlify’s runtime.
+
+1. In [Netlify](https://www.netlify.com), connect the repository (build command and publish directory are set in `netlify.toml`).
+2. Add the same environment variables as for Vercel: `DATABASE_URL`, `OPENAI_API_KEY`, and optional `LLM_MODEL`.
+3. Deploy.
+
+---
+
 ## License
 
 Private / as specified by the repository owner.

@@ -1,0 +1,8 @@
+# Netlify + Next.js (App Router). See https://docs.netlify.com/integrations/frameworks/next-js/
+
+[build]
+  command = "yarn build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
